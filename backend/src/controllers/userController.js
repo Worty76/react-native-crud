@@ -3,9 +3,14 @@ const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const register = async (req, res) => {
-  const user = await User.find({ username: req.body.username });
+  const user = await User.findOne({ username: req.body.username });
 
   // Im not gonna encrypt password. maybe later after i done crud
+  console.log(user);
+
+  if (user) {
+    return res.status(400).json({ message: "This username is already exist" });
+  }
 
   const newUser = new User({
     username: req.body.username,
