@@ -8,7 +8,9 @@ const cloudinary = require("../utils/cloudinary");
 const search = async (req, res) => {
   const { name } = req.body;
 
-  const products = await Product.find({ name: name });
+  const products = await Product.find({
+    name: { $regex: name, $options: "i" },
+  });
 
   console.log(products);
 
@@ -43,8 +45,9 @@ const create = async (req, res) => {
       }
 
       let imagePath = null;
+      console.log(fields);
 
-      if (fields.image[0]) {
+      if (fields.image && fields.image[0]) {
         await cloudinary.uploader.upload(
           fields.image[0],
           async function (err, result) {
@@ -64,7 +67,7 @@ const create = async (req, res) => {
             });
 
             await newProduct.save();
-            res.status(200).json({
+            return res.status(200).json({
               success: true,
               message: "Successfully created a product!",
               data: newProduct,
@@ -72,6 +75,19 @@ const create = async (req, res) => {
           }
         );
       }
+      const newProduct = new Product({
+        name: fields.name[0],
+        price: fields.price[0],
+        topic: fields.topic[0],
+        author: req.user._id,
+      });
+
+      await newProduct.save();
+      return res.status(200).json({
+        success: true,
+        message: "Successfully created a product!",
+        data: newProduct,
+      });
     });
   } catch (error) {
     console.error(error);
