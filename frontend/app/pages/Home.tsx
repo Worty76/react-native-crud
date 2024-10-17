@@ -12,61 +12,64 @@ import {
   Platform,
 } from "react-native";
 import Auth from "../helper/Auth";
-import ImagePicker from "expo-image-picker";
-import { launchImageLibrary } from "react-native-image-picker";
+import {
+  launchImageLibrary,
+  ImageLibraryOptions,
+} from "react-native-image-picker";
 
 var baseURL = `http://localhost:8000`;
 if (Platform.OS === "android") {
   baseURL = "http://10.0.2.2:8000";
 }
-
 if (Platform.OS === "ios") {
   baseURL = "http://192.168.110.226:8000";
 }
 
-export default function Home({ navigation }) {
-  const [products, setProducts] = useState([]);
-  const [productName, setProductName] = useState("");
-  const [productPrice, setProductPrice] = useState("");
-  const [productTopic, setProductTopic] = useState("");
-  const [productId, setProductId] = useState(null);
-  const [user, setUser] = useState({});
-  const [errors, setErrors] = useState({});
-  const [isFormValid, setIsFormValid] = useState(false);
-  const [search, setSearch] = useState("");
-  const [image, setImage] = useState();
+interface Product {
+  _id: string;
+  name: string;
+  price: string;
+  topic: string;
+  image: string;
+}
 
-  const validateForm = () => {
-    let errors = {};
+interface User {
+  user: {
+    role: string;
+  };
+  token: string;
+}
 
-    if (!productName) {
-      errors.productName = "productName is required.";
-    }
+export default function Home({ navigation }: { navigation: any }) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productName, setProductName] = useState<string>("");
+  const [productPrice, setProductPrice] = useState<string>("");
+  const [productTopic, setProductTopic] = useState<string>("");
+  const [productId, setProductId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [search, setSearch] = useState<string>("");
+  const [image, setImage] = useState<string | undefined>(undefined);
+  const [isFormValid, setIsFormValid] = useState<boolean>(false);
 
-    if (!productPrice) {
-      errors.productPrice = "productPrice is required.";
-    }
+  const validateForm = (): boolean => {
+    let errors: { [key: string]: string } = {};
 
-    if (!productTopic) {
-      errors.productTopic = "productTopic is required.";
-    }
+    if (!productName) errors.productName = "Product name is required.";
+    if (!productPrice) errors.productPrice = "Product price is required.";
+    if (!productTopic) errors.productTopic = "Product topic is required.";
 
     setErrors(errors);
-    setIsFormValid(Object.keys(errors).length === 0);
+    return Object.keys(errors).length === 0;
   };
 
   useEffect(() => {
     const getAuth = async () => {
-      const user = await Auth.isAuthenticated().then((data) => {
-        return data;
-      });
+      const user = (await Auth.isAuthenticated()) as User;
       setUser(user);
     };
 
     getAuth();
-  }, []);
-
-  useEffect(() => {
     fetchProducts();
   }, []);
 
@@ -80,9 +83,11 @@ export default function Home({ navigation }) {
   };
 
   const handleSubmit = async () => {
-    validateForm();
-    try {
-      if (isFormValid) {
+    const isValid = validateForm();
+    setIsFormValid(isValid);
+
+    if (isValid) {
+      try {
         if (productId) {
           await axios.put(
             `${baseURL}/api/product/update/${productId}`,
@@ -95,7 +100,7 @@ export default function Home({ navigation }) {
               headers: {
                 Accept: "application/json",
                 "Content-Type": "application/json",
-                Authorization: "Bearer " + user.token,
+                Authorization: "Bearer " + user?.token,
               },
             }
           );
@@ -104,37 +109,41 @@ export default function Home({ navigation }) {
           formData.append("name", productName);
           formData.append("price", productPrice);
           formData.append("topic", productTopic);
-          formData.append("image", image);
+          if (image) {
+            formData.append("image", image);
+          }
 
           await axios.post(`${baseURL}/api/product/create`, formData, {
             headers: {
               "Content-Type": "multipart/form-data",
-              Authorization: "Bearer " + user.token,
+              Authorization: "Bearer " + user?.token,
             },
           });
         }
+
         setProductName("");
         setProductPrice("");
         setProductTopic("");
         setProductId(null);
+        setImage(undefined);
         fetchProducts();
+      } catch (error) {
+        console.error("Error submitting product:", error);
       }
-    } catch (error) {
-      console.error("Error submitting product:", error);
     }
   };
 
-  const handleEdit = (product) => {
+  const handleEdit = (product: Product) => {
     setProductName(product.name);
     setProductPrice(product.price);
     setProductTopic(product.topic);
     setProductId(product._id);
   };
 
-  const handleDelete = async (productId) => {
+  const handleDelete = async (productId: string) => {
     try {
       await axios.delete(`${baseURL}/api/product/delete/${productId}`, {
-        headers: { Authorization: "Bearer " + user.token },
+        headers: { Authorization: "Bearer " + user?.token },
       });
       fetchProducts();
     } catch (error) {
@@ -144,35 +153,31 @@ export default function Home({ navigation }) {
 
   const handleSearch = async () => {
     try {
-      if (search === "") {
+      if (!search) {
         fetchProducts();
         return;
       }
 
-      await axios
-        .post(
-          `${baseURL}/api/product/search`,
-          {
-            name: search,
+      const response = await axios.post(
+        `${baseURL}/api/product/search`,
+        { name: search },
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + user?.token,
           },
-          {
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + user.token,
-            },
-          }
-        )
-        .then((data) => {
-          setProducts(data.data.data);
-        });
+        }
+      );
+
+      setProducts(response.data.data);
     } catch (error) {
-      console.error("Error deleting product:", error);
+      console.error("Error searching product:", error);
     }
   };
 
   const selectPhotoTapped = () => {
-    const options = {
+    const options: ImageLibraryOptions = {
       mediaType: "photo",
       includeBase64: false,
       maxHeight: 2000,
@@ -182,20 +187,18 @@ export default function Home({ navigation }) {
     launchImageLibrary(options, (response) => {
       if (response.didCancel) {
         console.log("User cancelled image picker");
-      } else if (response.error) {
-        console.log("Image picker error: ", response.error);
+      } else if (response.errorMessage) {
+        console.log("Image picker error: ", response.errorMessage);
       } else {
         let imageUri = response.assets?.[0]?.uri;
-        if (imageUri) {
-          setImage(imageUri);
-        }
+        if (imageUri) setImage(imageUri);
       }
     });
   };
 
   return (
     <View style={styles.container}>
-      {user && user.user && user.user.role === "admin" ? (
+      {user && user.user.role === "admin" && (
         <View>
           <View>
             <View style={styles.inputContainer}>
@@ -215,7 +218,7 @@ export default function Home({ navigation }) {
               />
             </View>
             <View style={styles.inputContainer}>
-              <Text>Product topic:</Text>
+              <Text>Product Topic:</Text>
               <TextInput
                 style={styles.input}
                 onChangeText={setProductTopic}
@@ -223,13 +226,9 @@ export default function Home({ navigation }) {
               />
             </View>
             <View style={styles.inputContainer}>
-              <Button title="Image" onPress={selectPhotoTapped} />
+              <Button title="Select Image" onPress={selectPhotoTapped} />
             </View>
-            <View>
-              {image && (
-                <Image style={{ width: 200 }} source={{ uri: image }} />
-              )}
-            </View>
+            {image && <Image style={styles.image} source={{ uri: image }} />}
           </View>
           <View>
             {Object.values(errors).map((error, index) => (
@@ -245,8 +244,6 @@ export default function Home({ navigation }) {
             />
           </View>
         </View>
-      ) : (
-        ""
       )}
       <View style={styles.inputContainer}>
         <TextInput
@@ -262,29 +259,18 @@ export default function Home({ navigation }) {
         renderItem={({ item }) => (
           <View style={styles.productItem}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View>
-                <Image
-                  source={{ uri: item.image }}
-                  style={{
-                    width: "150px",
-                    height: "150px",
-                    borderRadius: "10px",
-                  }}
-                />
-              </View>
+              <Image source={{ uri: item.image }} style={styles.image} />
               <View>
                 <Text>Name: {item.name}</Text>
                 <Text>Price: {item.price}</Text>
                 <Text>Topic: {item.topic}</Text>
               </View>
             </View>
-            {user && user.user && user.user.role === "admin" ? (
+            {user && user.user.role === "admin" && (
               <View style={styles.productButtons}>
                 <Button onPress={() => handleEdit(item)} title="Edit" />
                 <Button onPress={() => handleDelete(item._id)} title="Delete" />
               </View>
-            ) : (
-              ""
             )}
           </View>
         )}
@@ -317,21 +303,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
+    marginVertical: 10,
   },
   productButtons: {
+    width: 250,
     flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "space-around",
   },
   error: {
     color: "red",
-    fontSize: 15,
-    marginBottom: 12,
+    marginVertical: 5,
   },
   image: {
-    width: 200,
-    height: 200,
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    margin: 10,
   },
 });

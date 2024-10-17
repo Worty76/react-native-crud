@@ -1,7 +1,8 @@
 import Button from "@/components/Button";
-import { useState } from "react";
 import axios from "axios";
+import { useState } from "react";
 import { Text, View, StyleSheet, TextInput, Platform } from "react-native";
+import Auth from "../helper/Auth";
 
 var baseURL = `http://localhost:8000`;
 if (Platform.OS === "android") {
@@ -12,43 +13,31 @@ if (Platform.OS === "ios") {
   baseURL = "http://192.168.110.226:8000";
 }
 
-export default function SignUp({ navigation }) {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [rePassword, setRePassword] = useState("");
-  const [error, setError] = useState();
+export default function SignIn({ navigation }: { navigation: any }) {
+  const [username, setUsername] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
-  const [isFormValid, setIsFormValid] = useState(false);
+  const [isFormValid, setIsFormValid] = useState<boolean>(false);
 
-  const validateForm = () => {
-    let errors = {};
+  const validateForm = (): boolean => {
+    let errors: { [key: string]: string } = {};
 
-    if (!username) {
-      errors.username = "username is required.";
-    }
+    if (!username) errors.username = "username is required.";
 
-    if (!password) {
-      errors.password = "password is required.";
-    }
-    if (!rePassword) {
-      errors.rePassword = "repassword is required.";
-    }
-
-    if (password !== rePassword) {
-      errors.isMatch = "passwords don't match";
-    }
+    if (!password) errors.password = "password is required.";
 
     setErrors(errors);
-    setIsFormValid(Object.keys(errors).length === 0);
+    return Object.keys(errors).length === 0;
   };
 
-  const handleSignUp = async () => {
+  const handleSignIn = async () => {
     validateForm();
     try {
       if (isFormValid) {
         await axios
           .post(
-            `${baseURL}/api/user/register`,
+            `${baseURL}/api/user/login`,
             {
               username: username,
               password: password,
@@ -63,11 +52,14 @@ export default function SignUp({ navigation }) {
           .then((data) => {
             if (data.status === 400) {
             } else {
-              navigation.navigate("SignIn");
+              console.log(data);
+              Auth.authenticate(data.data.token, data.data.user, () => {
+                navigation.navigate("Home");
+              });
             }
           });
       }
-    } catch (error) {
+    } catch (error: any) {
       setError(error.response.data.message);
     }
   };
@@ -98,26 +90,21 @@ export default function SignUp({ navigation }) {
             secureTextEntry
           />
         </View>
-
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text>Re-Password: </Text>
-          <TextInput
-            style={styles.input}
-            onChangeText={setRePassword}
-            value={rePassword}
-            secureTextEntry
-          />
-        </View>
         <View>
-          {Object.values(errors).map((error, index) => (
+          {Object.values(errors).map((error: any, index) => (
             <Text key={index} style={styles.error}>
               {error}
             </Text>
           ))}
         </View>
-        <View>{error && <Text style={styles.error}>{error}</Text>}</View>
-        <View style={{ flexDirection: "row", justifyContent: "center" }}>
-          <Button onPress={handleSignUp} title="Submit" />
+        <Text style={styles.error}>{error}</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "center",
+          }}
+        >
+          <Button onPress={handleSignIn} title="Submit" />
         </View>
       </View>
     </View>
